@@ -69,7 +69,7 @@ pthread_mutex_t cache_lock;
 
 #define TIMEOUT 30
 #define CONSOLE "/dev/console"
-#define HEADER_SIZE 1024
+#define HEADER_SIZE (10*1024)
 #define MAX_REQUEST (32*1024)
 #define MAX_REDIRECTS 32
 #define TNAME_LEN 13
@@ -2068,7 +2068,37 @@ req:
                 errno = EIO;
             return res;
         }
-        res = read_client_socket(url, buf, HEADER_SIZE);
+        /* keep reading until a double newline is encountered */
+        char *header_buf = buf;
+        int total_size = 0;
+        unsigned int max_read_size = HEADER_SIZE;
+        int read_attempts = 10;
+        memset(buf, 0, HEADER_SIZE);
+        while (1)
+        {
+            res = read_client_socket(url, header_buf, max_read_size);
+            if (res < 0)
+                break;
+            else if (strstr(buf, "\r\n\r\n") ||
+                strstr(buf, "\n\n"))
+            {
+                res = total_size + res;
+                break;
+            }
+            else if (max_read_size < 0)
+            {
+                break;
+            }
+            else
+            {
+                read_attempts--;
+                header_buf += res;
+                total_size += res;
+                max_read_size -= res;
+                if (read_attempts <= 0)
+                    break;
+            }
+        }
 #ifdef RETRY_ON_RESET
         if ((errno == ECONNRESET) && (url->resets < url->retry_reset)) {
             errno_report("exchange: sleeping");
