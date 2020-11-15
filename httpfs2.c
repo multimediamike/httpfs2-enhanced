@@ -125,6 +125,7 @@ typedef struct url {
     char tname[TNAME_LEN + 1];
     char xmd5[33];
     char * override_name;
+    char * user_agent;
 } struct_url;
 
 // ========== CACHE  ============
@@ -1174,6 +1175,7 @@ static void usage(void)
     fprintf(stderr, "\t -r \tnumber of times to retry connection on reset\n\t\t(default: %i)\n", RESET_RETRIES);
 #endif
     fprintf(stderr, "\t -t \tset socket timeout in seconds (default: %i)\n", TIMEOUT);
+    fprintf(stderr, "\t -u \tset the HTTP user agent\n");
     fprintf(stderr, "\t -C \tset cache filename. also creates .idx file near to cache file\n");
     fprintf(stderr, "\t -F \toverride the name of the mounted file\n");
     fprintf(stderr, "\t -S \tset max size of cache file (default: %lld)\n", CACHEMAXSIZE);
@@ -1271,6 +1273,10 @@ int main(int argc, char *argv[])
                 case 'f': do_fork = 0;
                           break;
                 case 'F': main_url.override_name = strdup(argv[1]);
+                          shift;
+                          break;
+                case 'u': main_url.user_agent = strdup(argv[1]);
+                        printf("....user-agent: '%s'\n", main_url.user_agent);
                           shift;
                           break;
                 default:
@@ -2023,8 +2029,13 @@ req:
 
     bytes = (size_t)snprintf(buf, HEADER_SIZE, "%s %s HTTP/1.1\r\nHost: %s\r\n",
             method, url->path, url->host);
-    bytes += (size_t)snprintf(buf + bytes, HEADER_SIZE - bytes,
-            "User-Agent: %s %s\r\n", __FILE__, VERSION);
+    if (main_url.user_agent) {
+        bytes += (size_t)snprintf(buf + bytes, HEADER_SIZE - bytes,
+                "User-Agent: %s\r\n", main_url.user_agent);
+    } else {
+        bytes += (size_t)snprintf(buf + bytes, HEADER_SIZE - bytes,
+                "User-Agent: %s %s\r\n", __FILE__, VERSION);
+    }
     if (range) bytes += (size_t)snprintf(buf + bytes, HEADER_SIZE - bytes,
             "Range: bytes=%" PRIdMAX "-%" PRIdMAX "\r\n", (intmax_t)start, (intmax_t)end);
 #ifdef USE_AUTH
