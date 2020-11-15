@@ -124,6 +124,7 @@ typedef struct url {
     time_t last_modified;
     char tname[TNAME_LEN + 1];
     char xmd5[33];
+    char * override_name;
 } struct_url;
 
 // ========== CACHE  ============
@@ -1133,13 +1134,17 @@ static int parse_url(char * _url, struct_url* res, enum url_flags flag)
         end++;
         if(res->name)
             free(res->name);
-        if((path_start == 0) || (end == url)
-                || (strncmp(url, "/", (size_t)(end - url)) ==  0)){
-            res->name = strdup(res->host);
-        }else{
-            while(strchr(url, '/') && (strchr(url, '/') < end))
-                url = strchr(url, '/') + 1;
-            res->name = strndup(url, (size_t)(end - url));
+        if(res->override_name)
+            res->name = strdup(res->override_name);
+        else {
+            if((path_start == 0) || (end == url)
+                    || (strncmp(url, "/", (size_t)(end - url)) ==  0)){
+                res->name = strdup(res->host);
+            }else{
+                while(strchr(url, '/') && (strchr(url, '/') < end))
+                    url = strchr(url, '/') + 1;
+                res->name = strndup(url, (size_t)(end - url));
+            }
         }
     } else
         assert(res->name);
@@ -1154,7 +1159,7 @@ static void usage(void)
 #ifdef USE_SSL
             "[-a file] [-d n] [-5] [-2] "
 #endif
-            "[-f] [-t timeout] [-r n] [-C filename] [-S n] url mount-parameters\n\n", argv0);
+            "[-f] [-t timeout] [-r n] [-C filename] [-S n] [-N filename] url mount-parameters\n\n", argv0);
 #ifdef USE_SSL
     fprintf(stderr, "\t -2 \tAllow RSA-MD2 server certificate\n");
     fprintf(stderr, "\t -5 \tAllow RSA-MD5 server certificate\n");
@@ -1170,6 +1175,7 @@ static void usage(void)
 #endif
     fprintf(stderr, "\t -t \tset socket timeout in seconds (default: %i)\n", TIMEOUT);
     fprintf(stderr, "\t -C \tset cache filename. also creates .idx file near to cache file\n");
+    fprintf(stderr, "\t -F \toverride the name of the mounted file\n");
     fprintf(stderr, "\t -S \tset max size of cache file (default: %lld)\n", CACHEMAXSIZE);
     fprintf(stderr, "\tmount-parameters should include the mount point\n");
 }
@@ -1263,6 +1269,9 @@ int main(int argc, char *argv[])
                           shift;
                           break;
                 case 'f': do_fork = 0;
+                          break;
+                case 'F': main_url.override_name = strdup(argv[1]);
+                          shift;
                           break;
                 default:
                           usage();
